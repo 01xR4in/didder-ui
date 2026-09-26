@@ -9,7 +9,10 @@
 # instead:  docker compose build --build-arg DIDDER_REF=v1.3.0
 # The app detects mmcq support at runtime and disables the control if absent.
 ##############################################################################
-FROM golang:alpine AS didder-build
+# Base images are pinned by tag *and* multi-arch index digest, so a rebuild
+# uses exactly these bytes. To update: `docker buildx imagetools inspect <tag>`
+# and replace both the tag and the digest.
+FROM golang:1.27.1-alpine3.24@sha256:8a5910f31396cd4d89662f56c68b3ae31d374308270a1c3bd96672ee5ed43414 AS didder-build
 
 ARG DIDDER_REF=408a18aef878b456fe5cdbec406070fd5bd5c2d2
 ARG DIDDER_VERSION=v1.3.0+mmcq
@@ -29,7 +32,7 @@ RUN go build -trimpath \
 ##############################################################################
 # Stage 2 — runtime. No Go toolchain, just the static didder binary.
 ##############################################################################
-FROM python:3.12-slim AS runtime
+FROM python:3.12.14-slim-trixie@sha256:f77ac9e44ae96ef2c90b8053ea08c31f8be030f824196b0ae4db6d462c84e51f AS runtime
 
 # Match the host owner of ./work so the bind mount is writable. Override with
 # APP_UID/APP_GID (see docker-compose.yml) if your uid is not 1000.

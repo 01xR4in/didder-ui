@@ -149,12 +149,12 @@ To move to a new release (or back to v1.3.0), change the build args in
         DIDDER_VERSION: v1.4.0      # the string `didder --version` reports
 ```
 
-then rebuild. `--pull` fetches newer `golang:alpine` and `python:3.12-slim` bases:
+then rebuild:
 
 ```sh
-docker compose build --pull
+docker compose build
 docker compose up -d
-curl -s 127.0.0.1:8000/healthz    # confirm the reported version
+curl -s "${DITHER_BIND_ADDR:-127.0.0.1}:8000/healthz"    # confirm the reported version
 ```
 
 The build fails if the new binary can't run `didder --version`. When the app starts it
@@ -164,6 +164,25 @@ everything else keeps working.
 
 If a new didder release adds matrices or flags, update `app/spec.py`: `ODM_NAMES`,
 `EDM_NAMES`, the `Params` model, and `build_argv()`.
+
+### Updating the base images
+
+Both base images are pinned by an exact tag **and** the sha256 digest of their
+multi-arch index, so `--pull` won't change them and every build uses the same bytes:
+
+| Stage | Image |
+|---|---|
+| build | `golang:1.27.1-alpine3.24@sha256:8a5910f3…43414` |
+| runtime | `python:3.12.14-slim-trixie@sha256:f77ac9e4…4e51f` |
+
+To take security updates, look up the current digest of the tag you want and replace
+both the tag and the digest in the `Dockerfile`:
+
+```sh
+docker buildx imagetools inspect python:3.12-slim-trixie | grep -m1 Digest
+docker buildx imagetools inspect golang:alpine3.24 | grep -m1 Digest
+docker compose build && docker compose up -d
+```
 
 ---
 
@@ -270,7 +289,7 @@ docker run --rm --network host --user "$(id -u):$(id -g)" -e HOME=/tmp \
 ## Layout
 
 ```
-Dockerfile            multi-stage: golang:alpine builds didder → python:3.12-slim runtime
+Dockerfile            multi-stage: golang (Alpine) builds didder → python:3.12-slim runtime; digest-pinned
 docker-compose.yml    service `dither-ui`
 app/main.py           FastAPI app: upload, preview, export, healthz, sessions
 app/spec.py           didder options: validation and command building
