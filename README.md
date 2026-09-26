@@ -38,6 +38,14 @@ restarts, and in-progress sessions are restored when the app starts again. Each
 session's files are in `./work/sessions/<id>/` under `originals/`, `preview/` and
 `export/<timestamp>/`. Sessions idle for 6 hours are removed automatically.
 
+**In the browser**, the page also keeps a copy of each uploaded file in IndexedDB (as
+raw file data, not base64, so there's no size overhead and no ~5 MB localStorage
+limit). Your settings, named presets and session id are in localStorage. After a
+reload the page reconnects to its server session; if that session has expired or
+been cleaned up, it uploads the stored copies again automatically. Removing an image
+with × also removes it from the browser. The copies stay in the browser that uploaded
+them; another browser or device starts empty.
+
 **File ownership.** The container runs as a non-root user whose uid/gid default to
 `1000:1000` so that it can write to `./work`. If your host uid is different, build
 with your own:
@@ -249,7 +257,7 @@ must be the same length. Turning recolor on resizes the list to match.
 
 ```sh
 pytest -q                               # 48 unit tests: validation and command building (no Docker)
-python tests/e2e_smoke.py               # 66 API checks against a running instance
+python tests/e2e_smoke.py               # 68 API checks against a running instance
 
 # Browser checks (Playwright): pixel-exact rendering at DPR 1–3, live preview,
 # field errors, cancellation, before/after, export download, presets.

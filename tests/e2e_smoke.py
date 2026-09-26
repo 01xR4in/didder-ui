@@ -95,6 +95,11 @@ s, up = upload([("photo.png", make_png(1600, 1000), "image/png")])
 check("upload ok", s == 200 and up["images"][0]["width"] == 1600, up)
 sid = up["session"]
 
+s, b, _ = request("GET", f"/api/session/{sid}")
+check("GET session lists its images (reconnect after reload)", s == 200 and json.loads(b)["images"][0]["name"] == "photo.png", b)
+s, _, _ = request("GET", "/api/session/ffffffffffffffffffffffffffffffff")
+check("GET unknown session is 404", s == 404)
+
 base = {"algorithm": "bayer", "bayer_x": 4, "bayer_y": 4, "palette": ["black", "white"]}
 
 # -- preview --------------------------------------------------------------- #

@@ -11,6 +11,7 @@ const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
 const STORAGE_LAST = "didder-gui.last-state.v1";
 const STORAGE_PRESETS = "didder-gui.presets.v1";
+const STORAGE_SESSION = "didder-gui.session.v1";  // {id, activeIndex}
 const DEBOUNCE_MS = 150;
 
 const DEFAULTS = Object.freeze({
@@ -57,6 +58,9 @@ let state = clone(DEFAULTS);
 let session = null;
 let images = [];
 let activeIndex = 0;
+// Browser-side copies of the uploaded files, index-aligned with `images`, kept
+// in IndexedDB so a reload (or an expired server session) can be recovered.
+let localFiles = [];
 
 // Render bookkeeping: every request gets a monotonically increasing id, and a
 // response is only applied if it is still the newest one. The previous fetch
@@ -133,6 +137,7 @@ async function init() {
   if (!config.mmcq_supported && state.palette_mode === "mmcq") state.palette_mode = "colors";
 
   renderAll();
+  await restoreImages();
   changed({ immediate: true });
 }
 
@@ -811,7 +816,7 @@ async function run() {
       } else {
         showError("Preview failed", typeof d.detail === "string" ? d.detail : JSON.stringify(d, null, 2));
         setStatus("preview failed");
-        if (res.status === 404) { session = null; images = []; renderImageList(); }
+        if (res.status === 404 && await recoverSession()) { hideError(); changed({ immediate: true }); }
       }
       return;
     }
@@ -916,6 +921,21 @@ function wireUpload() {
   });
 }
 
+function postFiles(files, sid) {
+  const fd = new FormData();
+  files.forEach((f) => fd.append("files", f.blob || f, f.name));
+  const q = sid ? `?session=${encodeURIComponent(sid)}` : "";
+  return fetch(`/api/upload${q}`, { method: "POST", body: fd })
+    .then(async (res) => ({ status: res.status, ok: res.ok, data: await res.json().catch(() => ({})) }));
+}
+
+function setSession(id, list) {
+  session = id;
+  images = list;
+  activeIndex = Math.min(activeIndex, Math.max(0, images.length - 1));
+  storageSet(STORAGE_SESSION, { id: session, activeIndex });
+}
+
 async function upload(fileList) {
   const files = [...fileList];
   const maxBytes = config.max_upload_mb * 1024 * 1024;
@@ -927,36 +947,81 @@ async function upload(fileList) {
   const ok = files.filter((f) => !rejected.includes(f));
   if (!ok.length) return;
 
-  const fd = new FormData();
-  ok.forEach((f) => fd.append("files", f, f.name));
   const zone = $("#dropzone");
   zone.classList.add("busy");
   setStatus(`uploading ${ok.length} file${ok.length > 1 ? "s" : ""}…`, true);
   try {
-    const q = session ? `?session=${encodeURIComponent(session)}` : "";
-    let res = await fetch(`/api/upload${q}`, { method: "POST", body: fd });
-    if (res.status === 404 && session) {  // session expired server-side: start over
-      session = null;
-      images = [];
-      res = await fetch("/api/upload", { method: "POST", body: fd });
+    let res = await postFiles(ok, session);
+    if (res.status === 404 && session) {
+      // Server session expired: rebuild it from the browser copies first.
+      await recoverSession();
+      res = await postFiles(ok, session);
     }
-    const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      showError("Upload failed", typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail ?? data));
+      const d = res.data;
+      showError("Upload failed", typeof d.detail === "string" ? d.detail : JSON.stringify(d.detail ?? d));
       setStatus("upload failed");
       return;
     }
-    const firstNew = images.length ? data.images.length - data.added.length : 0;
-    session = data.session;
-    images = data.images;
+    const firstNew = res.data.images.length - res.data.added.length;
+    localFiles.push(...ok.map((f) => ({ name: f.name, type: f.type, blob: f })));
+    setSession(res.data.session, res.data.images);
     activeIndex = firstNew;
-    hideError();
+    storageSet(STORAGE_SESSION, { id: session, activeIndex });
+    saveLocalFiles();
+    if (!rejected.length) hideError();
     renderImageList();
     changed({ immediate: true });
   } catch (err) {
     showError("Upload failed", String(err));
   } finally {
     zone.classList.remove("busy");
+  }
+}
+
+/**
+ * On page load: reconnect to the server session if it still exists and still
+ * matches the stored files; otherwise re-upload the stored files.
+ */
+async function restoreImages() {
+  localFiles = await loadLocalFiles();
+  const saved = storageGet(STORAGE_SESSION, null);
+  activeIndex = Number.isInteger(saved?.activeIndex) ? saved.activeIndex : 0;
+
+  if (saved?.id) {
+    const { ok, data } = await api(`/api/session/${encodeURIComponent(saved.id)}`);
+    if (ok && data.images.length && (!localFiles.length || data.images.length === localFiles.length)) {
+      setSession(data.session, data.images);
+      renderImageList();
+      return;
+    }
+  }
+  if (localFiles.length) await recoverSession();
+  renderImageList();
+}
+
+/** Recreate the server session from the browser copies. Returns success. */
+async function recoverSession() {
+  if (!localFiles.length) {
+    setSession(null, []);
+    renderImageList();
+    return false;
+  }
+  setStatus(`restoring ${localFiles.length} image${localFiles.length > 1 ? "s" : ""} from this browser…`, true);
+  try {
+    const res = await postFiles(localFiles, null);
+    if (!res.ok) throw new Error(typeof res.data.detail === "string" ? res.data.detail : `HTTP ${res.status}`);
+    setSession(res.data.session, res.data.images);
+    renderImageList();
+    setStatus("");
+    return true;
+  } catch (err) {
+    showError("Could not restore stored images", `${err.message || err}\nThey have been cleared from this browser.`);
+    localFiles = [];
+    saveLocalFiles();
+    setSession(null, []);
+    renderImageList();
+    return false;
   }
 }
 
@@ -972,12 +1037,14 @@ function renderImageList() {
     li.addEventListener("click", (e) => {
       if (e.target.closest("button")) return;
       activeIndex = i;
+      storageSet(STORAGE_SESSION, { id: session, activeIndex });
       renderImageList();
       changed({ immediate: true });
     });
     $("button", li).addEventListener("click", () => removeImage(i));
     return li;
   }));
+  $("#stored-note").hidden = !localFiles.length;
   if (!images.length) {
     afterImage = null;
     beforeImage = null;
@@ -991,12 +1058,73 @@ function renderImageList() {
 }
 
 async function removeImage(i) {
-  const { ok, data } = await api(`/api/session/${session}/remove/${i}`, {}, { method: "POST" });
-  if (!ok) { showError("Could not remove image", data?.detail || ""); return; }
-  images = data.images;
-  activeIndex = Math.min(activeIndex, Math.max(0, images.length - 1));
+  let res = await api(`/api/session/${session}/remove/${i}`, {}, { method: "POST" });
+  if (res.status === 404 && await recoverSession()) {
+    res = await api(`/api/session/${session}/remove/${i}`, {}, { method: "POST" });
+  }
+  if (!res.ok) { showError("Could not remove image", res.data?.detail || ""); return; }
+  localFiles.splice(i, 1);
+  saveLocalFiles();
+  setSession(res.data.images.length ? session : null, res.data.images);
   renderImageList();
   changed({ immediate: true });
+}
+
+/* ======================================================================== */
+/* Browser-side image store (IndexedDB)                                     */
+/* ======================================================================== */
+
+// Files are stored as Blobs, not base64: no 33% size overhead, and no ~5 MB
+// localStorage ceiling. The whole ordered list lives under one key.
+const IDB_NAME = "didder-gui";
+const IDB_STORE = "files";
+const IDB_KEY = "current";
+
+function openIdb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(IDB_STORE);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function loadLocalFiles() {
+  try {
+    const db = await openIdb();
+    const list = await new Promise((resolve, reject) => {
+      const req = db.transaction(IDB_STORE, "readonly").objectStore(IDB_STORE).get(IDB_KEY);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    db.close();
+    return Array.isArray(list) ? list.filter((f) => f && f.blob instanceof Blob) : [];
+  } catch {
+    return [];  // private mode, storage disabled, ...
+  }
+}
+
+let storeWarned = false;
+async function saveLocalFiles() {
+  try {
+    const db = await openIdb();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, "readwrite");
+      const store = tx.objectStore(IDB_STORE);
+      if (localFiles.length) store.put(localFiles, IDB_KEY);
+      else store.delete(IDB_KEY);
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+    db.close();
+  } catch (err) {
+    if (!storeWarned) {
+      storeWarned = true;
+      showError("Images not saved in this browser",
+        `They will still work now, but will not survive a reload (${err?.name || err}).`);
+    }
+  }
 }
 
 /* ======================================================================== */

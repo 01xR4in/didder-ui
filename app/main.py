@@ -721,6 +721,19 @@ async def api_upload(
     }
 
 
+@app.get("/api/session/{sid}")
+async def api_session(sid: str) -> dict[str, Any]:
+    """Let a reloaded page reconnect to its session (404 if it is gone)."""
+    sess = get_session(sid)
+    return {
+        "session": sess.id,
+        "images": [
+            {"name": i.name, "width": i.width, "height": i.height, "bytes": i.bytes}
+            for i in sess.images
+        ],
+    }
+
+
 @app.post("/api/session/{sid}/remove/{index}")
 async def api_remove(sid: str, index: int) -> dict[str, Any]:
     sess = get_session(sid)

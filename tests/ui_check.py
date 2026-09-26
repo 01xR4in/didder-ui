@@ -318,10 +318,12 @@ with sync_playwright() as pw:
             expect(page.locator("#didder-version")).not_to_have_text("…")
             expect(page.locator("#command")).to_contain_text("-r '0f380f 306230 8bac0f 9bbc0f'")
             check("state restored after reload", True)
+            expect(page.locator("#image-list li")).to_have_count(1)
+            check("uploaded image restored after reload", True)
 
-            # Multi-image: animated GIF.
+            # Multi-image: animated GIF (the restored image + 2 more).
             page.set_input_files("#file-input", [src, src2])
-            expect(page.locator("#image-list li")).to_have_count(2)
+            expect(page.locator("#image-list li")).to_have_count(3)
             page.click("#multi-mode button[data-mode='animate']")
             expect(page.locator("#animate-fields")).to_be_visible()
             page.fill("#fps", "6")
@@ -331,11 +333,63 @@ with sync_playwright() as pw:
                 page.click("#export-btn")
             with open(dl.value.path(), "rb") as fh:
                 gif = fh.read()
-            check("animated GIF downloaded with 2 frames", gif[:6] == b"GIF89a" and gif.count(b"\x21\xf9\x04") == 2, gif[:6])
+            check("animated GIF downloaded with 3 frames", gif[:6] == b"GIF89a" and gif.count(b"\x21\xf9\x04") == 3, gif[:6])
             page.screenshot(path=f"{OUT}/07-multi.png", full_page=False)
 
         check("no JS console errors", not console_errors, console_errors)
         ctx.close()
+
+    # Images survive reloads: reconnect, or rebuild from IndexedDB copies.
+    print("== browser-side image storage")
+    ctx = browser.new_context(viewport={"width": 1280, "height": 800})
+    page = ctx.new_page()
+    page.goto(BASE)
+    expect(page.locator("#didder-version")).not_to_have_text("…")
+    page.set_input_files("#file-input", [src, src2])
+    expect(page.locator("#image-list li")).to_have_count(2)
+    wait_new_preview(page, "")
+    sid = page.evaluate("() => JSON.parse(localStorage.getItem('didder-gui.session.v1')).id")
+    page.locator("#image-list li").nth(1).click()
+    page.wait_for_timeout(300)
+
+    page.reload()
+    expect(page.locator("#image-list li")).to_have_count(2)
+    wait_new_preview(page, "")
+    sid2 = page.evaluate("() => JSON.parse(localStorage.getItem('didder-gui.session.v1')).id")
+    check("reload reconnects to the same server session", sid2 == sid, (sid, sid2))
+    check("reload keeps the selected image", "active" in (page.locator("#image-list li").nth(1).get_attribute("class") or ""))
+    check("stored-in-browser note shown", page.is_visible("#stored-note"))
+
+    # Simulate an expired/cleaned-up server session.
+    page.evaluate("() => localStorage.setItem('didder-gui.session.v1', JSON.stringify({id: 'ffffffffffffffffffffffffffffffff', activeIndex: 0}))")
+    page.reload()
+    expect(page.locator("#image-list li")).to_have_count(2)
+    wait_new_preview(page, "")
+    sid3 = page.evaluate("() => JSON.parse(localStorage.getItem('didder-gui.session.v1')).id")
+    check("unknown session rebuilt from IndexedDB copies", sid3 not in (sid, "ffffffffffffffffffffffffffffffff"), sid3)
+    names = page.locator("#image-list .name").all_inner_texts()
+    check("restored in original order", names == ["_input.png", "_input2.png"], names)
+
+    # Session vanishes while the page is open: next render recovers by itself.
+    page.evaluate("() => { session = 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'; }")
+    cur = preview_src(page)
+    page.fill("#brightness-num", "7")
+    wait_new_preview(page, cur)
+    check("mid-session 404 recovers transparently", not page.is_visible("#error-banner"))
+
+    page.locator("#image-list li").nth(0).locator("button").click()
+    expect(page.locator("#image-list li")).to_have_count(1)
+    page.locator("#image-list li").nth(0).locator("button").click()
+    expect(page.locator("#image-list li")).to_have_count(0)
+    page.reload()
+    expect(page.locator("#didder-version")).not_to_have_text("…")
+    page.wait_for_timeout(500)
+    check("removed images are gone after reload", page.locator("#image-list li").count() == 0)
+    stored = page.evaluate("""() => new Promise(r => { const q = indexedDB.open('didder-gui', 1);
+        q.onsuccess = () => { const g = q.result.transaction('files').objectStore('files').get('current');
+        g.onsuccess = () => r(g.result ? g.result.length : 0); }; })""")
+    check("IndexedDB emptied", stored == 0, stored)
+    ctx.close()
 
     # Error banner: surface didder output verbatim. Force a didder-side failure
     # by pointing the page at a monkeypatched fetch that injects an error reply.
