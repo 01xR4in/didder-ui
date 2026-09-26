@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+work/*
+!work/.gitkeep
+.devbin/
+.devwork/
+.devlog
+tests/screens/
+.env
