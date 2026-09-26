@@ -1,0 +1,51 @@
+services:
+  dither-ui:
+    build:
+      context: .
+      args:
+        # Must own ./work on the host. `APP_UID=$(id -u) APP_GID=$(id -g) docker compose build`
+        APP_UID: ${APP_UID:-1000}
+        APP_GID: ${APP_GID:-1000}
+        # Pinned main commit (adds mmcq). For the tagged release instead:
+        #   DIDDER_REF: v1.3.0
+        #   DIDDER_VERSION: v1.3.0
+    image: didder-webui:latest
+    container_name: dither-ui
+    restart: unless-stopped
+    # One specific host interface -- never 0.0.0.0. Set DITHER_BIND_ADDR in
+    # .env (defaults to loopback).
+    ports:
+      - "${DITHER_BIND_ADDR:-127.0.0.1}:8000:8000"
+    # Uploads and exports live here and are visible from the host at ./work.
+    volumes:
+      - ./work:/work
+    environment:
+      DIDDER_WORK_DIR: /work
+      DIDDER_MAX_UPLOAD_MB: "32"       # per file
+      DIDDER_MAX_REQUEST_MB: "256"     # whole upload request
+      # Multipart uploads are spooled here (disk) rather than the RAM tmpfs.
+      TMPDIR: /work/.tmp
+      DIDDER_SESSION_TTL: "21600"   # 6h
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # Dithering is CPU-bound. The app reads this quota from cgroup cpu.max and
+    # uses it as the default --threads, rather than the host's core count.
+    cpus: 2.0
+    mem_limit: 1g
+    pids_limit: 128
+    healthcheck:
+      # python is in the image; curl is not. /healthz also runs `didder --version`.
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=4).status == 200 else 1)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

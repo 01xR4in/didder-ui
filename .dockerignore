@@ -1,0 +1,34 @@
+# VCS / editor
+.git
+.gitignore
+.vscode
+.idea
+*.swp
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Runtime data -- never bake uploads/exports into the image
+work/
+
+# Not needed in the image
+tests/
+README.md
+docker-compose.yml
+Dockerfile
+.dockerignore
+docs/
+requirements-dev.txt
+.devbin/
+.devwork/
+.devlog
+pytest.ini
+.env
+.env.example
