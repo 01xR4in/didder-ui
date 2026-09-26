@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>didder GUI</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="app">
+
+<!-- ======================================================================= -->
+<aside class="sidebar" aria-label="Dithering controls">
+  <header class="brand">
+    <h1>didder <span>GUI</span></h1>
+    <span class="version" id="didder-version" title="didder binary in use">…</span>
+  </header>
+
+  <!-- ---------------------------------------------------------------- -->
+  <section class="panel" id="panel-images">
+    <div id="dropzone" class="dropzone" tabindex="0" role="button"
+         aria-label="Upload images: drop files here or press Enter to browse">
+      <input type="file" id="file-input" accept="image/*" multiple hidden>
+      <strong>Drop images here</strong>
+      <span>or click to browse · <span id="upload-limit"></span></span>
+    </div>
+    <ul id="image-list" class="image-list" aria-label="Uploaded images"></ul>
+  </section>
+
+  <!-- ---------------------------------------------------------------- -->
+  <details class="panel" open>
+    <summary>Algorithm</summary>
+    <div class="segmented" role="tablist" id="algo-tabs">
+      <button role="tab" data-algo="bayer">bayer</button>
+      <button role="tab" data-algo="odm">odm</button>
+      <button role="tab" data-algo="edm">edm</button>
+      <button role="tab" data-algo="random">random</button>
+    </div>
+
+    <div class="algo-pane" data-pane="bayer">
+      <label class="field">
+        <span>Matrix size <small>X × Y</small></span>
+        <select id="bayer" data-field="bayer"></select>
+        <small class="hint">Powers of two, plus 3x3, 3x5 and 5x3. Smaller matrices give coarser patterns.</small>
+        <small class="field-error" data-error-for="bayer"></small>
+      </label>
+    </div>
+
+    <div class="algo-pane" data-pane="odm">
+      <label class="toggle"><input type="checkbox" id="odm-custom"> Custom matrix</label>
+      <label class="field" id="odm-name-field">
+        <span>Built-in matrix</span>
+        <select id="odm-name"></select>
+      </label>
+      <label class="field" id="odm-matrix-field" hidden>
+        <span>Matrix JSON <small>{"matrix": [[…]], "max": N}</small></span>
+        <textarea id="odm-matrix" data-field="odm_matrix" rows="6" spellcheck="false">{
+  "matrix": [
+    [12, 5, 6, 13],
+    [4, 0, 1, 7],
+    [11, 3, 2, 8],
+    [15, 10, 9, 14]
+  ],
+  "max": 16
+}</textarea>
+        <small class="field-error" data-error-for="odm_matrix"></small>
+      </label>
+    </div>
+
+    <div class="algo-pane" data-pane="edm">
+      <label class="toggle"><input type="checkbox" id="edm-custom"> Custom matrix</label>
+      <label class="field" id="edm-name-field">
+        <span>Built-in matrix</span>
+        <select id="edm-name"></select>
+      </label>
+      <label class="field" id="edm-matrix-field" hidden>
+        <span>Matrix JSON <small>plain 2D array</small></span>
+        <textarea id="edm-matrix" data-field="edm_matrix" rows="4" spellcheck="false">[
+  [0, 0, 0.4375],
+  [0.1875, 0.3125, 0.0625]
+]</textarea>
+        <small class="field-error" data-error-for="edm_matrix"></small>
+      </label>
+      <label class="toggle" title="Snake left/right on alternate rows. Can reduce directional artifacts.">
+        <input type="checkbox" id="serpentine"> <code>--serpentine</code>
+      </label>
+    </div>
+
+    <div class="algo-pane" data-pane="random">
+      <label class="toggle"><input type="checkbox" id="random-advanced"> Per-channel (RGB) ranges</label>
+      <div id="random-simple">
+        <div class="dual" data-dual="all"></div>
+      </div>
+      <div id="random-rgb" hidden>
+        <div class="dual" data-dual="r"></div>
+        <div class="dual" data-dual="g"></div>
+        <div class="dual" data-dual="b"></div>
+      </div>
+      <small class="field-error" data-error-for="random"></small>
+      <label class="field">
+        <span>Seed <small>optional — deterministic, single-threaded</small></span>
+        <div class="row">
+          <input type="number" id="seed" data-field="seed" step="1" placeholder="random each run">
+          <button type="button" class="ghost" id="seed-roll" title="Pick a random seed">🎲</button>
+        </div>
+        <small class="field-error" data-error-for="seed"></small>
+      </label>
+      <small class="hint">-0.5 / 0.5 is the recommended default. Narrow the range to reduce noise; skew it to bias light or dark.</small>
+    </div>
+  </details>
+
+  <!-- ---------------------------------------------------------------- -->
+  <details class="panel" open>
+    <summary>Palette <code>-p</code></summary>
+    <div class="segmented small" id="palette-mode">
+      <button data-mode="colors">Colours</button>
+      <button data-mode="mmcq" id="mmcq-tab" title="Automatic palette via median-cut quantization">mmcq:N</button>
+    </div>
+
+    <div id="palette-colors-pane">
+      <label class="field">
+        <span>Preset</span>
+        <select id="palette-preset"><option value="">— choose a preset —</option></select>
+        <small class="hint" id="palette-preset-note"></small>
+      </label>
+      <div class="swatches" id="palette-swatches" data-field="palette"></div>
+      <div class="row">
+        <button type="button" class="ghost" id="palette-add">+ Add colour</button>
+        <button type="button" class="ghost" id="palette-paste" title="Paste a didder-style palette string">Paste…</button>
+      </div>
+      <small class="hint">Accepts <code>#rrggbb</code>, <code>rrggbb</code>, <code>#rgb</code>, <code>r,g,b</code>, <code>0–255</code> gray, or SVG names like <code>forestGreen</code>.</small>
+      <small class="field-error" data-error-for="palette"></small>
+    </div>
+
+    <div id="palette-mmcq-pane" hidden>
+      <label class="field">
+        <span>Colours to pick <small>power of two</small></span>
+        <select id="mmcq" data-field="mmcq"></select>
+        <small class="hint">didder picks the palette from each image with MMCQ.</small>
+        <small class="field-error" data-error-for="mmcq"></small>
+      </label>
+    </div>
+    <small class="hint warn" id="mmcq-unsupported" hidden>This didder build predates <code>mmcq:N</code> (added after v1.3.0), so it is disabled. See the README to build from the pinned main commit.</small>
+  </details>
+
+  <!-- ---------------------------------------------------------------- -->
+  <details class="panel" open>
+    <summary>Recolor <code>-r</code>
+      <span class="info" tabindex="0" role="note" data-tip="Dither to a grayscale palette, then recolor to the target hue. Dithering straight into a low-RGB-spread palette (e.g. only greens) gives poor contrast, because a colour image is being squeezed into one hue. Recolor colours map by position: palette colour 1 → recolor colour 1, and so on.">?</span>
+    </summary>
+    <label class="toggle"><input type="checkbox" id="recolor-enabled"> Recolor after dithering</label>
+    <div id="recolor-pane" hidden>
+      <div class="swatches" id="recolor-swatches" data-field="recolor"></div>
+      <div class="row">
+        <button type="button" class="ghost" id="recolor-add">+ Add colour</button>
+        <button type="button" class="ghost" id="recolor-match" title="Make the recolor list the same length as the palette">Match palette length</button>
+      </div>
+      <button type="button" id="derive-gray" class="secondary wide"
+        title="Replace --palette with the luminance of each recolor colour">
+        ⇧ Derive grayscale palette from recolor
+      </button>
+      <small class="hint">Also accepts RGBA tuples like <code>0,0,0,0</code> to make a colour transparent. Must have the same number of colours as the palette.</small>
+      <small class="field-error" data-error-for="recolor"></small>
+    </div>
+  </details>
+
+  <!-- ---------------------------------------------------------------- -->
+  <details class="panel" open>
+    <summary>Adjustments</summary>
+    <div class="slider-field" data-slider="strength" data-min="-100" data-max="100" data-step="1" data-default="100">
+      <span class="label">Strength <code>-s</code></span>
+      <small class="hint" id="strength-hint">Try ~64% for bayer/odm on colour images, ~80% to reduce edm noise.</small>
+    </div>
+    <div class="slider-field" data-slider="brightness" data-min="-100" data-max="100" data-step="1" data-default="0">
+      <span class="label">Brightness</span>
+    </div>
+    <div class="slider-field" data-slider="contrast" data-min="-100" data-max="100" data-step="1" data-default="0">
+      <span class="label">Contrast</span>
+    </div>
+    <div class="slider-field" data-slider="saturation" data-min="-100" data-max="100" data-step="1" data-default="0">
+      <span class="label">Saturation</span>
+      <small class="hint">-100% is equivalent to grayscale.</small>
+    </div>
+    <label class="toggle"><input type="checkbox" id="grayscale"> Grayscale <code>-g</code></label>
+    <label class="toggle"><input type="checkbox" id="no-exif-rotation"> <code>--no-exif-rotation</code></label>
+  </details>
+
+  <!-- ---------------------------------------------------------------- -->
+  <details class="panel" open>
+    <summary>Sizing</summary>
+    <div class="grid2">
+      <label class="field">
+        <span>Width <code>-x</code></span>
+        <input type="number" id="width" data-field="width" min="1" step="1" placeholder="auto">
+        <small class="field-error" data-error-for="width"></small>
+      </label>
+      <label class="field">
+        <span>Height <code>-y</code></span>
+        <input type="number" id="height" data-field="height" min="1" step="1" placeholder="auto">
+        <small class="field-error" data-error-for="height"></small>
+      </label>
+    </div>
+    <small class="hint">Resize <em>before</em> dithering. Leave one blank to keep the aspect ratio.</small>
+    <label class="field">
+      <span>Upscale <code>-u</code> <small>integer</small></span>
+      <input type="number" id="upscale" data-field="upscale" min="1" max="32" step="1" value="1" inputmode="numeric">
+      <small class="hint">Nearest-neighbour upscale <em>after</em> dithering. Integers only: a non-integer factor would smear and destroy the dither pattern.</small>
+      <small class="field-error" data-error-for="upscale"></small>
+    </label>
+  </details>
+
+  <!-- ---------------------------------------------------------------- -->
+  <details class="panel" open>
+    <summary>Output</summary>
+    <div class="grid2">
+      <label class="field">
+        <span>Format <code>-f</code></span>
+        <select id="format" data-field="format">
+          <option value="png">png</option>
+          <option value="gif">gif</option>
+        </select>
+        <small class="field-error" data-error-for="format"></small>
+      </label>
+      <label class="field">
+        <span>Compression <code>-c</code></span>
+        <select id="compression" data-field="compression"></select>
+      </label>
+    </div>
+    <label class="field">
+      <span>Threads <code>-j</code> <small id="threads-note"></small></span>
+      <input type="number" id="threads" data-field="threads" min="1" max="256" step="1">
+      <small class="field-error" data-error-for="threads"></small>
+    </label>
+    <label class="toggle" title="Only affects the copied command: in-app exports always go to a fresh folder.">
+      <input type="checkbox" id="no-overwrite"> <code>--no-overwrite</code>
+    </label>
+
+    <fieldset class="multi" id="multi-fieldset" hidden>
+      <legend>Multiple images</legend>
+      <div class="segmented small" id="multi-mode">
+        <button data-mode="batch">Batch export</button>
+        <button data-mode="animate">Animated GIF</button>
+      </div>
+      <div class="grid2" id="animate-fields" hidden>
+        <label class="field">
+          <span>FPS <code>--fps</code></span>
+          <input type="number" id="fps" data-field="fps" min="0.01" max="100" step="any" value="10">
+          <small class="field-error" data-error-for="fps"></small>
+        </label>
+        <label class="field">
+          <span>Loops <code>-l</code> <small>0 = ∞</small></span>
+          <input type="number" id="loop" data-field="loop" min="0" max="65535" step="1" value="0">
+          <small class="field-error" data-error-for="loop"></small>
+        </label>
+      </div>
+      <small class="hint" id="multi-hint"></small>
+    </fieldset>
+  </details>
+
+  <!-- ---------------------------------------------------------------- -->
+  <details class="panel">
+    <summary>Saved presets</summary>
+    <div class="row">
+      <input type="text" id="preset-name" placeholder="Preset name" maxlength="60">
+      <button type="button" id="preset-save" class="secondary">Save</button>
+    </div>
+    <ul id="preset-list" class="preset-list"></ul>
+    <button type="button" class="ghost wide" id="reset-all">Reset all settings to defaults</button>
+  </details>
+</aside>
+
+<!-- ======================================================================= -->
+<main class="main">
+  <div id="error-banner" class="banner error" role="alert" hidden>
+    <div class="banner-head">
+      <strong id="error-title">didder failed</strong>
+      <button type="button" class="close" id="error-close" aria-label="Dismiss error">×</button>
+    </div>
+    <pre id="error-body"></pre>
+  </div>
+
+  <div class="toolbar">
+    <div class="segmented small" id="zoom-mode" aria-label="Zoom">
+      <button data-zoom="fit" title="Largest whole-number zoom that fits">Fit</button>
+      <button data-zoom="1" title="One image pixel per screen pixel">1:1</button>
+    </div>
+    <div class="zoom-step">
+      <button type="button" class="ghost" id="zoom-out" aria-label="Zoom out">−</button>
+      <span id="zoom-label">1×</span>
+      <button type="button" class="ghost" id="zoom-in" aria-label="Zoom in">+</button>
+    </div>
+    <label class="toggle inline"><input type="checkbox" id="compare"> Before/after</label>
+    <span class="status" id="status" aria-live="polite"></span>
+    <span class="spacer"></span>
+    <button type="button" id="export-btn" class="primary" disabled>Export full resolution</button>
+  </div>
+
+  <div class="scale-note" id="scale-note" hidden></div>
+
+  <div class="stage" id="stage">
+    <div class="empty" id="empty">
+      <p>Drop an image anywhere to start.</p>
+      <p class="hint">Every change re-runs <code>didder</code> on a downscaled copy; export re-runs the same command on the original.</p>
+    </div>
+    <div class="canvas" id="canvas" hidden>
+      <canvas id="before-canvas" class="before" aria-hidden="true"></canvas>
+      <canvas id="preview-canvas" class="after" role="img" aria-label="Dithered preview"></canvas>
+      <div class="divider" id="divider" hidden><span></span></div>
+    </div>
+    <div class="stage-sizer" id="stage-sizer" aria-hidden="true"></div>
+  </div>
+
+  <section class="command">
+    <div class="command-head">
+      <span>Command <small>full-resolution export · runs in any shell next to your image</small></span>
+      <button type="button" class="ghost" id="copy-cmd">Copy</button>
+    </div>
+    <pre><code id="command">didder …</code></pre>
+  </section>
+
+  <div id="export-result" class="banner ok" hidden>
+    <div class="banner-head">
+      <strong>Export ready</strong>
+      <button type="button" class="close" id="export-close" aria-label="Dismiss">×</button>
+    </div>
+    <ul id="export-files"></ul>
+  </div>
+</main>
+</div>
+
+<div id="drop-overlay" class="drop-overlay" hidden><span>Drop to upload</span></div>
+<script src="/static/app.js" defer></script>
+</body>
+</html>
