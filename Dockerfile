@@ -20,7 +20,7 @@ ARG DIDDER_VERSION=v1.3.0+mmcq
 RUN apk add --no-cache git
 
 WORKDIR /src
-RUN git clone --no-checkout https://github.com/makeworld-the-better-one/didder.git . \
+RUN git clone --no-checkout https://github.com/makew0rld/didder.git . \
  && git checkout --detach "${DIDDER_REF}"
 
 ENV CGO_ENABLED=0

@@ -51,7 +51,7 @@ didder as a separate program (a subprocess) and does not link against it.
 The Docker image built from this repository's Dockerfile does include a
 didder binary, compiled from:
 
-    https://github.com/makeworld-the-better-one/didder
+    https://github.com/makew0rld/didder
     commit 408a18aef878b456fe5cdbec406070fd5bd5c2d2 (see DIDDER_REF in the
     Dockerfile)
 
