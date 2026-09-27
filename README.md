@@ -1,6 +1,6 @@
 # didder GUI
 
-A local web GUI for [didder](https://github.com/makeworld-the-better-one/didder),
+A local web GUI for [didder](https://github.com/makew0rld/didder),
 the image dithering CLI, with a live preview that re-renders as you change settings.
 
 ![didder GUI: before/after comparison of a Game Boy–style dither](docs/screenshot.png)
@@ -84,6 +84,11 @@ follows.
 ## Development without Docker
 
 didder is found on `PATH` (or through `DIDDER_BIN`). Nothing refers to container paths.
+
+didder's repository has moved to <https://github.com/makew0rld/didder>, but its
+`go.mod` still declares the module as `github.com/makeworld-the-better-one/didder`,
+so `go install` must use that old path. The new one fails with "module declares its
+path as…".
 
 ```sh
 # 1. didder — either of:
