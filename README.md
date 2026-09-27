@@ -24,11 +24,11 @@ docker compose up -d --build
 
 Then open <http://127.0.0.1:8000>. The port is published on one host interface,
 never `0.0.0.0`: loopback by default, or the address in `DITHER_BIND_ADDR`, which
-Compose reads from `.env`:
+Compose reads from `.env` (copy `.env.example`):
 
 ```sh
 # .env
-DITHER_BIND_ADDR=127.0.0.1     # then open http://127.0.0.1:8000
+DITHER_BIND_ADDR=127.0.0.1     # or one of this host's LAN addresses; then open http://<addr>:8000
 ```
 
 The app has no authentication, so anyone who can reach that address can use it.
