@@ -27,7 +27,8 @@ ENV CGO_ENABLED=0
 RUN go build -trimpath \
       -ldflags "-s -w -X main.version=${DIDDER_VERSION} -X main.commit=${DIDDER_REF} -X main.builtBy=docker" \
       -o /out/didder . \
- && /out/didder --version
+ && /out/didder --version \
+ && cp LICENSE /out/LICENSE
 
 ##############################################################################
 # Stage 2 — runtime. No Go toolchain, just the static didder binary.
@@ -46,6 +47,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     DIDDER_WORK_DIR=/work
 
 COPY --from=didder-build /out/didder /usr/local/bin/didder
+# didder is GPL-3.0: ship its license with the binary (see NOTICE).
+COPY --from=didder-build /out/LICENSE /usr/share/licenses/didder/LICENSE
+COPY LICENSE NOTICE /usr/share/licenses/didder-webui/
 
 RUN groupadd --gid "${APP_GID}" dither \
  && useradd --uid "${APP_UID}" --gid dither --no-create-home \

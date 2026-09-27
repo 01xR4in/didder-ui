@@ -2,6 +2,8 @@
 
 Extracted from golang.org/x/image/colornames (the table didder itself uses via
 `colornames.Map`), so name validation here matches the binary exactly.
+
+Copyright 2009 The Go Authors. Used under the BSD 3-Clause license; see NOTICE.
 """
 
 SVG_COLOR_NAMES: dict[str, tuple[int, int, int]] = {

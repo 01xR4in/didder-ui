@@ -298,3 +298,8 @@ app/colornames.py     SVG colour names (didder's table)
 app/static/           index.html, style.css, app.js (no build step)
 tests/                unit, API and browser tests
 ```
+
+## License
+
+MIT, see [LICENSE](LICENSE). The Docker image also contains didder, which is
+GPL-3.0; [NOTICE](NOTICE) lists that and the other third-party material.

@@ -1,0 +1,77 @@
+didder GUI
+Copyright (c) 2026 The didder GUI contributors
+
+The source code in this repository is licensed under the MIT License (see
+LICENSE), except for the third-party material listed below, which remains
+under its own license.
+
+
+1. SVG colour name table (app/colornames.py)
+--------------------------------------------
+
+The colour names and RGB values in app/colornames.py were extracted from
+golang.org/x/image/colornames (https://go.googlesource.com/image), which is
+distributed under the following BSD 3-Clause license:
+
+    Copyright 2009 The Go Authors.
+
+    Redistribution and use in source and binary forms, with or without
+    modification, are permitted provided that the following conditions are
+    met:
+
+       * Redistributions of source code must retain the above copyright
+    notice, this list of conditions and the following disclaimer.
+       * Redistributions in binary form must reproduce the above
+    copyright notice, this list of conditions and the following disclaimer
+    in the documentation and/or other materials provided with the
+    distribution.
+       * Neither the name of Google LLC nor the names of its
+    contributors may be used to endorse or promote products derived from
+    this software without specific prior written permission.
+
+    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+    "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+    LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+    A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+    OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+    SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+    LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+    DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+    THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+    OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+2. didder (Docker image only)
+-----------------------------
+
+This repository does not contain didder's source code. The application runs
+didder as a separate program (a subprocess) and does not link against it.
+
+The Docker image built from this repository's Dockerfile does include a
+didder binary, compiled from:
+
+    https://github.com/makeworld-the-better-one/didder
+    commit 408a18aef878b456fe5cdbec406070fd5bd5c2d2 (see DIDDER_REF in the
+    Dockerfile)
+
+didder is Copyright (c) makeworld and contributors and is licensed under the
+GNU General Public License, version 3 (GPL-3.0). Its license text is shipped
+in the image at /usr/share/licenses/didder/LICENSE, and the corresponding
+source code is available at the URL and commit above. If you distribute the
+image, the GPL-3.0 terms apply to the didder binary it contains.
+
+The didder binary also statically includes Go libraries under their own
+licenses, including github.com/makeworld-the-better-one/dither (MPL-2.0),
+github.com/urfave/cli (MIT), github.com/disintegration/imaging (MIT) and
+golang.org/x/image (BSD-3-Clause); their sources are pinned by didder's
+go.mod/go.sum at the commit above.
+
+
+3. Python dependencies
+----------------------
+
+Installed from PyPI at build time (requirements.txt), not vendored. All are
+under permissive licenses: FastAPI, pydantic, anyio, h11 (MIT); Starlette,
+uvicorn, click, idna (BSD-3-Clause); python-multipart (Apache-2.0);
+Pillow (MIT-CMU); typing_extensions (PSF-2.0).
